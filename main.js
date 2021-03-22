@@ -2,25 +2,51 @@ const express = require('express');
 const app = express();
 let template = require('./lib/template');
 const bodyParser = require('body-parser');
+const helmet = require("helmet");
+const shortid = require('shortid'); 
+
+// session
+var session = require('express-session')
+var FileStore = require('session-file-store')(session)
+app.use(session({
+  secret: 'asadlfkj!@#!@#dfgasdg',
+  resave: false,
+  saveUninitialized: true,
+  store:new FileStore()
+}))
+
+
 
 
 // Middleware
+app.use(helmet());
 app.use(bodyParser.urlencoded({ extended: false }))
 
 
 // DB
 const db = require('./lib/db');
 
+
+// ROUTE
 app.get('/', function(req, res){
   db.query('SELECT posts.id, title,description,created,nickName,created FROM posts JOIN authors ON posts.author = authors.id ORDER BY posts.id', 
     function(err, posts){
+
+
+      // authentication 
+      let authentication = '';
+      if(req.session.is_logined === true){
+        const nickName = req.session.nickName;
+        authentication += `<span>${nickName}님 어서오세요. </span>`;
+        authentication += '<span><a href="/logout_process">로그아웃</a></span>';
+      } else {
+        authentication += `<span>어서오세요</span>`
+        authentication += '<span><a href="/login">로그인</a> | <a href="/author/create">회원가입</a></span>';
+      }
       
       let list = template.LIST(posts);
       let html = template.HTML("Welcome",
-      `
-      <span>세계로님 안녕하세요</span>
-      <span><a href="#">로그인</a> | <a href="#">회원가입</a></span>
-      `,
+      authentication,
       `
       <div class="post__top-bar">
         <span class="post__top-bar__num"=>글번호</span>
@@ -54,14 +80,98 @@ app.get('/', function(req, res){
     })
 })
 
+app.get('/login', function(req, res){
+  if(req.session.is_logined === true){
+    res.redirect('/');
+    return false;
+  }
+  let html = template.HTML("Welcome",
+  `
+  <span> </span>
+  <span><a href="#">로그인</a> | <a href="#">회원가입</a></span>
+  `,
+  `
+  <form action="/login_process" method="post" class="post__create">
+    <span class="author_register_header">로그인</span>
+
+    <span class="author_register_form">Email</span>
+    <input class="author_register_text" type="text" name="email">
+
+    <span class="author_register_form">Password</span>
+    <input class="author_register_text" type="password" name="password">
+    
+    <input class="post_submit post_submit_login" type="submit" value="Login">
+  </form>
+  `,
+  ` `    
+  )
+  res.send(html);
+})
+
+
+
+
+app.post('/login_process', function(req, res){
+  const post = req.body;
+  const email = post.email;
+  const password = post.password;
+  console.log(email, password);
+
+
+  db.query(`SELECT email, password, id, nickName FROM authors WHERE email=?`,[email], function(err, author){
+    if(err){
+      throw err;
+    }
+    console.log(author);
+
+    if(!author[0]){
+      // 아이디를 찾을 수 없습니다.
+      console.log('no such a email');
+      res.redirect('/login');
+    } else if (password !== author[0].password){
+      // 비밀번호 오류
+      console.log('wrong password')
+      res.redirect('/login')
+    } else {
+      // 로그인 성공. :)
+      console.log('login success :)');
+      req.session.author_id = author[0].id;
+      req.session.is_logined = true;
+      req.session.nickName = author[0].nickName;
+      req.session.save(function(){
+        res.redirect('/');
+      })
+    }
+  })
+
+})
+
+
+app.get('/logout_process', function(req, res){
+  req.session.destroy(function(err){
+    res.redirect('/');
+  })
+})
 
 app.get('/posts/create', function(req, res){
-  db.query("SELECT * FROM authors WHERE id='aaaaaa'", function(err, author){
+  if(!req.session.is_logined){
+    res.redirect('/');
+    return false;
+  }
+
+  let authentication = '';
+      if(req.session.is_logined === true){
+        const nickName = req.session.nickName;
+        authentication += `<span>${nickName}님 어서오세요. </span>`;
+        authentication += '<span><a href="/logout_process">로그아웃</a></span>';
+      } else {
+        authentication += `<span>어서오세요</span>`
+        authentication += '<span><a href="/login">로그인</a> | <a href="/author/create">회원가입</a></span>';
+      }
+
+  db.query("SELECT * FROM authors WHERE id=?", [req.session.author_id], function(err, author){
     let html = template.HTML("Welcome",
-    `
-    <span>세계로님 안녕하세요</span>
-    <span><a href="#">로그인</a> | <a href="#">회원가입</a></span>
-    `,
+    authentication,
     `
     <form action="/posts/create_process" method="post" class="post__create">
       <input type="hidden" value="${author[0].id}" name="author">     
@@ -81,7 +191,8 @@ app.post('/posts/create_process', function(req, res){
   const title = post.title;
   const description = post.description;
   const author = post.author;
-  db.query(`INSERT INTO posts (title, description, created, author) VALUES('${title}', '${description}', NOW(), '${author}')`, 
+  db.query(`INSERT INTO posts (title, description, created, author) VALUES(?, ?, NOW(), ?)`,
+    [title, description, author], 
     function(err, result){
       if(err){
         throw err;
@@ -92,11 +203,87 @@ app.post('/posts/create_process', function(req, res){
 
 app.post('/posts/delete_process', function(req, res){
   const id = req.body.id;
-  db.query(`DELETE FROM posts WHERE id='${id}'`, function(err, result){
+  db.query(`DELETE FROM posts WHERE id=?`, [id], function(err, result){
     if(err){
       throw err;
     }
     res.redirect('/');
+  })
+})
+
+app.get('/author/create', function(req, res){
+
+  let authentication = '';
+  if(req.session.is_logined === true){
+    const nickName = req.session.nickName;
+    authentication += `<span>${nickName}님 어서오세요. </span>`;
+    authentication += '<span><a href="/logout_process">로그아웃</a></span>';
+  } else {
+    authentication += `<span>어서오세요</span>`
+    authentication += '<span><a href="/login">로그인</a> | <a href="/author/create">회원가입</a></span>';
+  }
+
+  let html = template.HTML("Welcome",
+  authentication,
+  `
+  <form action="/author/create_process" method="post" class="post__create">
+    <span class="author_register_header">회원가입</span>
+
+    <span class="author_register_form">Email</span>
+    <input class="author_register_text" type="text" name="email">
+
+    <span class="author_register_form">Nick Name</span>
+    <input class="author_register_text" type="text" name="nickName">
+
+    <span class="author_register_form">Password</span>
+    <input class="author_register_text" type="password" name="password">
+
+    <span class="author_register_form">Confirm Password</span>
+    <input class="author_register_text" type="password" name="password2">
+
+    <input class="post_submit" type="submit" value="Register">
+  </form>
+  `,
+  ` `    
+  )
+  res.send(html);
+})
+
+
+app.post('/author/create_process', function(req, res){
+  const post = req.body;
+  const email = post.email;
+  const nickName = post.nickName;
+  const password = post.password;
+  const password2 = post.password2;
+  db.query(`SELECT email FROM authors WHERE email=?`,[email], function(err, result){
+    if(err){
+      throw err;
+    } 
+    if (result[0]){
+      // 이메일 중복
+      res.redirect('/author/create');
+    } else {
+      db.query('SELECT nickName FROM authors WHERE nickName=?', [nickName], function(err, result){
+        if(err){
+          throw err;
+        } 
+        if (result[0]){
+          // 별명 중복
+          res.redirect('/author/create')
+        } else if (password !== password2){
+          // 비밀번호 틀림
+          res.redirect('/author/create')
+        }
+          // 회원 정보 등록
+        db.query(`INSERT INTO authors (id, email, nickName, password, registerDate) VALUES('${shortid()}', '${email}', '${nickName}', '${password}', NOW())`, function(err, result){
+          if(err){
+            throw err;
+          }
+          res.redirect('/');
+        })
+      })
+    }
   })
 })
 
@@ -107,8 +294,8 @@ app.post('/posts/update_process', function(req, res){
   const description = post.description;
   const id = post.id;
 
-  db.query(`UPDATE posts SET title=?, description=? WHERE id=${id}`,
-    [title, description], 
+  db.query(`UPDATE posts SET title=?, description=? WHERE id=?`,
+    [title, description, id], 
     function(err, result){
       if(err){
         throw err;
@@ -121,10 +308,19 @@ app.post('/posts/update_process', function(req, res){
 
 app.get('/posts/update/:pageId', function(req, res){
   const pageId = req.params.pageId;
-  db.query(`SELECT * FROM posts WHERE id=${pageId}`, function(err, post){
+  db.query(`SELECT * FROM posts WHERE id=?`,[pageId], function(err, post){
     if(err){
       throw err;
     }
+  
+    if(req.session.is_logined === false){
+      res.redirect('/');
+      return false;
+    } else if (req.session.author_id !== post[0].author){
+      res.redirect('/');
+      return false;
+    }
+ 
     let html = template.HTML("Welcome",
     `
     <span>세계로님 안녕하세요</span>
@@ -145,8 +341,19 @@ app.get('/posts/update/:pageId', function(req, res){
 })
 
 app.get('/posts/:pageID', function(req, res){
+  let authentication = '';
+      if(req.session.is_logined === true){
+        const nickName = req.session.nickName;
+        authentication += `<span>${nickName}님 어서오세요. </span>`;
+        authentication += '<span><a href="/logout_process">로그아웃</a></span>';
+      } else {
+        authentication += `<span>어서오세요</span>`
+        authentication += '<span><a href="/login">로그인</a> | <a href="/author/create">회원가입</a></span>';
+      }
+
   const pageId = req.params.pageID;
-  db.query(`SELECT posts.id, title, description, created, nickName, created FROM posts JOIN authors ON posts.author = authors.id WHERE posts.id=${pageId}`, 
+  db.query(`SELECT posts.id, title, description, created, nickName, created FROM posts JOIN authors ON posts.author = authors.id WHERE posts.id=?`, 
+    [pageId],
     function(err, posts){
       if(err){
         throw err;
@@ -161,16 +368,13 @@ app.get('/posts/:pageID', function(req, res){
       const minuite = created.getMinutes();
       const description = posts[0].description;
       let html = template.HTML("Welcome",
-      `
-      <span>세계로님 안녕하세요</span>
-      <span><a href="#">로그인</a> | <a href="#">회원가입</a></span>
-      `,
+      authentication,
       `
       <div class="post__detail">
         <span class="post__detail__title">${title}</span>
         <div class="post__detail__metaInfo">
             <span class="post__detail__author">${author}</span>
-            <span class="post__detail__created">${year}-${month}-${day} ${hour}:${minuite}</span>
+            <span class="post__detail__created">${year}-${month + 1}-${day} ${hour}:${minuite}</span>
         </div>
         <p class="post__detail__description">${description}</p>
       </div>
@@ -193,6 +397,8 @@ app.get('/posts/:pageID', function(req, res){
     })
 });
 
+
+// SERVER CONNECTE
 app.listen(3000, () => {
   console.log(`Server connected 😃`);
 })
