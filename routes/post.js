@@ -2,8 +2,15 @@ const express = require('express');
 const router = express.Router();
 let template = require('../lib/template');
 const db = require('../lib/db');
+const auth = require('../lib/auth');
+
 
 router.post('/create_process', function(req, res){
+  if(!auth.isLogined(req, res)){
+    res.redirect('/');
+    return false;
+  }
+
     const post = req.body;
     const title = post.title;
     const description = post.description;
@@ -19,6 +26,18 @@ router.post('/create_process', function(req, res){
 })
   
 router.post('/delete_process', function(req, res){
+
+  const post = req.body;
+  console.log(post);
+
+  if(!auth.isLogined(req, res)){
+    res.redirect('/');
+    return false;
+  } else if (req.user[0].id !== post.author){
+    res.redirect('/');
+    return false;
+  }
+  
 const id = req.body.id;
 db.query(`DELETE FROM posts WHERE id=?`, [id], function(err, result){
     if(err){
@@ -29,22 +48,14 @@ db.query(`DELETE FROM posts WHERE id=?`, [id], function(err, result){
 })
 
 router.get('/create', function(req, res){
-    if(!req.session.is_logined){
+    
+    if(!auth.isLogined(req, res)){
       res.redirect('/');
       return false;
     }
+    const authentication = auth.statusUI(req, res);
   
-    let authentication = '';
-        if(req.session.is_logined === true){
-          const nickName = req.session.nickName;
-          authentication += `<span>${nickName}님 어서오세요. </span>`;
-          authentication += '<span><a href="/logout_process">로그아웃</a></span>';
-        } else {
-          authentication += `<span>어서오세요</span>`
-          authentication += '<span><a href="/login">로그인</a> | <a href="/author/create">회원가입</a></span>';
-        }
-  
-    db.query("SELECT * FROM authors WHERE id=?", [req.session.author_id], function(err, author){
+    db.query("SELECT * FROM authors WHERE id=?", [req.user[0].id], function(err, author){
       let html = template.HTML("Welcome",
       authentication,
       `
@@ -62,6 +73,14 @@ router.get('/create', function(req, res){
 })
 
 router.post('/update_process', function(req, res){
+  if(!auth.isLogined(req, res)){
+    res.redirect('/');
+    return false;
+  } else if (req.user[0].id !== post[0].author){
+    res.redirect('/');
+    return false;
+  }
+  
     const post = req.body;
     const title = post.title;
     const description = post.description;
@@ -86,13 +105,14 @@ router.get('/update/:pageId', function(req, res){
         throw err;
       }
     
-      if(req.session.is_logined === false){
+      if(!auth.isLogined(req, res)){
         res.redirect('/');
         return false;
-      } else if (req.session.author_id !== post[0].author){
+      } else if (req.user[0].id !== post[0].author){
         res.redirect('/');
         return false;
       }
+      
    
       let html = template.HTML("Welcome",
       `
@@ -114,25 +134,16 @@ router.get('/update/:pageId', function(req, res){
   });
   
 router.get('/:pageID', function(req, res){
-    let authentication = '';
-        if(req.session.is_logined === true){
-          const nickName = req.session.nickName;
-          authentication += `<span>${nickName}님 어서오세요. </span>`;
-          authentication += '<span><a href="/logout_process">로그아웃</a></span>';
-        } else {
-          authentication += `<span>어서오세요</span>`
-          authentication += '<span><a href="/login">로그인</a> | <a href="/author/create">회원가입</a></span>';
-        }
-  
+    const authentication = auth.statusUI(req, res);
     const pageId = req.params.pageID;
-    db.query(`SELECT posts.id, title, description, created, nickName, created FROM posts JOIN authors ON posts.author = authors.id WHERE posts.id=?`, 
+    db.query(`SELECT posts.id, title, description, created, nickName, created, author FROM posts JOIN authors ON posts.author = authors.id WHERE posts.id=?`, 
       [pageId],
       function(err, posts){
         if(err){
           throw err;
         }
         const title = posts[0].title;
-        const author = posts[0].nickName;
+        const nickName = posts[0].nickName;
         const created = posts[0].created;
         const year = created.getFullYear();
         const month = created.getMonth();
@@ -146,7 +157,7 @@ router.get('/:pageID', function(req, res){
         <div class="post__detail">
           <span class="post__detail__title">${title}</span>
           <div class="post__detail__metaInfo">
-              <span class="post__detail__author">${author}</span>
+              <span class="post__detail__author">${nickName}</span>
               <span class="post__detail__created">${year}-${month + 1}-${day} ${hour}:${minuite}</span>
           </div>
           <p class="post__detail__description">${description}</p>
@@ -159,6 +170,7 @@ router.get('/:pageID', function(req, res){
           <div class="post__detail__control_box">
             <form action="/posts/delete_process" method="post" class="post__detail__control_box__delete">
               <input type="hidden" name="id" value="${posts[0].id}">
+              <input type="hidden" name="author" value="${posts[0].author}">
               <button class="posts__delete__button" type="submit">DELETE</button>
             </form>
             <a href="/posts/update/${posts[0].id}" class="control__fram__button">UPDATE</a>            

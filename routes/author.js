@@ -3,19 +3,17 @@ const router = express.Router();
 let template = require('../lib/template');
 const db = require('../lib/db');
 const shortid = require('shortid'); 
+const auth = require('../lib/auth');
 
 
 
 
 router.get('/login', function(req, res){
-    if(req.session.is_logined === true){
-      res.redirect('/');
-      return false;
-    }
+    
     let html = template.HTML("Welcome",
     `
     <span> </span>
-    <span><a href="/author/login">로그인</a> | <a href="#=/author/create">회원가입</a></span>
+    <span><a href="/author/login">로그인</a> | <a href="/author/create">회원가입</a></span>
     `,
     `
     <form action="/author/login_process" method="post" class="post__create">
@@ -35,6 +33,9 @@ router.get('/login', function(req, res){
     res.send(html);
 });
   
+
+
+/*
 router.post('/login_process', function(req, res){
     const post = req.body;
     const email = post.email;
@@ -63,6 +64,8 @@ router.post('/login_process', function(req, res){
       }
     })
   });
+
+  */
   
   
 router.get('/logout_process', function(req, res){
@@ -73,15 +76,8 @@ router.get('/logout_process', function(req, res){
   
   
 router.get('/create', function(req, res){
-    let authentication = '';
-    if(req.session.is_logined === true){
-      const nickName = req.session.nickName;
-      authentication += `<span>${nickName}님 어서오세요. </span>`;
-      authentication += '<span><a href="/author/logout_process">로그아웃</a></span>';
-    } else {
-      authentication += `<span>어서오세요</span>`
-      authentication += '<span><a href="/author/login">로그인</a> | <a href="/author/create">회원가입</a></span>';
-    }
+
+    const authentication = auth.statusUI(req, res);
     let html = template.HTML("Welcome",
     authentication,
     `
@@ -110,24 +106,25 @@ router.get('/create', function(req, res){
   
   
 router.post('/create_process', function(req, res){
+  
     const post = req.body;
     const email = post.email;
     const nickName = post.nickName;
     const password = post.password;
     const password2 = post.password2;
-    db.query(`SELECT email FROM authors WHERE email=?`,[email], function(err, result){
+    db.query(`SELECT email FROM authors WHERE email=?`,[email], function(err, resultEmail){
       if(err){
         throw err;
       } 
-      if (result[0]){
+      if (resultEmail[0]){
         // 이메일 중복
         res.redirect('/author/create');
       } else {
-        db.query('SELECT nickName FROM authors WHERE nickName=?', [nickName], function(err, result){
+        db.query('SELECT nickName FROM authors WHERE nickName=?', [nickName], function(err, resultNickName){
           if(err){
             throw err;
           } 
-          if (result[0]){
+          if (resultNickName[0]){
             // 별명 중복
             res.redirect('/author/create')
           } else if (password !== password2){
