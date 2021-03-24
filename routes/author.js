@@ -9,7 +9,12 @@ const auth = require('../lib/auth');
 
 
 router.get('/login', function(req, res){
-    
+
+    const fmsg = req.flash();
+    let feedback = '';
+    if(fmsg.message){
+      feedback = fmsg.message;
+    }
     let html = template.HTML("Welcome",
     `
     <span> </span>
@@ -18,6 +23,8 @@ router.get('/login', function(req, res){
     `
     <form action="/author/login_process" method="post" class="post__create">
       <span class="author_register_header">로그인</span>
+
+      <span style='color:tomato; font-weight:bolder;'>${feedback}</span>
   
       <span class="author_register_form">Email</span>
       <input class="author_register_text" type="text" name="email">
@@ -33,7 +40,43 @@ router.get('/login', function(req, res){
     res.send(html);
 });
   
+router.post('/author/login_process', (req, res, next) => {
+  console.log("pre-info!")
+  passport.authenticate('local',(err, user, info) => {           // Localstrategy에 message가 info로 온다.
 
+
+    if(req.session.flash){
+      req.session.flash = {}      
+    }
+
+    req.flash('message', info.message);
+
+    req.session.save(() => {
+      if (err) { 
+      return next(err)
+      }
+
+      if (!user) {     //user가 없다는 말은 serialzie 혹은 desrialize 에서 아무런 데이터를 못받았단 이야기 = 로그인 실패
+      return res.redirect('/author/login')   
+      }
+      
+      req.logIn(user, (err) => {
+        if (err) {
+        return next(err)
+        }
+        return req.session.save(() => {
+        res.redirect('/')
+        })
+      })
+    })
+  })(req, res, next)
+  })
+
+/*
+app.post('/author/login_process',
+passport.authenticate('local', { successRedirect: '/',
+                                  failureRedirect: '/author/login' }));
+*/
 
 /*
 router.post('/login_process', function(req, res){
@@ -64,7 +107,6 @@ router.post('/login_process', function(req, res){
       }
     })
   });
-
   */
   
   
