@@ -1,10 +1,12 @@
 const express = require('express');
+const app = express();
 const router = express.Router();
 let template = require('../lib/template');
 const db = require('../lib/db');
 const shortid = require('shortid'); 
 const auth = require('../lib/auth');
 
+let passport = require('../lib/passport')(app);
 
 
 
@@ -40,6 +42,40 @@ router.get('/login', function(req, res){
     res.send(html);
 });
   
+router.post('/login_process', (req, res, next) => {
+  console.log("pre-info!")
+  passport.authenticate('local',(err, user, info) => {
+
+    if(req.session.flash){
+      req.session.flash = {}      
+    }
+
+    req.flash('message', info.message);
+  
+    console.log("info!",info);
+    console.log(user);
+
+    req.session.save(() => {
+      if (err) { 
+      return next(err)
+      }
+
+      if (!user) {     //user가 없다는 말은 serialzie 혹은 desrialize 에서 아무런 데이터를 못받았단 이야기 = 로그인 실패
+      return res.redirect('/author/login')   
+      }
+      
+      req.logIn(user, (err) => {
+        if (err) {
+        return next(err)
+        }
+        return req.session.save(() => {
+        res.redirect('/')
+        })
+      })
+    })
+  })(req, res, next)
+  })
+
 
 
 /*
