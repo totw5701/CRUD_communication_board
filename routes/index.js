@@ -3,6 +3,8 @@ const router = express.Router();
 let template = require('../lib/template');
 const db = require('../lib/db');
 const auth = require('../lib/auth');
+const url = require('url');
+
 
 
 
@@ -14,7 +16,14 @@ router.get('/', function(req, res){
       
       const authentication = auth.statusUI(req, res);
 
-      let list = template.LIST(posts);
+      //pages
+      const _url = req.url;
+      const queryData = url.parse(_url, true).query;
+      const page_query = queryData.page_num;
+
+      const page_select = template.PAGES_SELECTOR(posts, page_query);
+
+      let list = template.LIST(posts, page_query);
       let html = template.HTML("Welcome",
       authentication,
       `
@@ -31,7 +40,9 @@ router.get('/', function(req, res){
 
       <div class="post__bottom-bar">
         <div></div>
-        <div class="post__page-num">page number</div>
+        <div class="post__page-num">
+          ${page_select}
+        </div>
         <div>
           <a href="/posts/create" class="control__fram__button">CREATE</a>            
         </div>
