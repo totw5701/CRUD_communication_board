@@ -73,18 +73,20 @@ router.get('/create', function(req, res){
 })
 
 router.post('/update_process', function(req, res){
+
+  const post = req.body;
+  const title = post.title;
+  const description = post.description;
+  const id = post.id;
+
   if(!auth.isLogined(req, res)){
     res.redirect('/');
     return false;
-  } else if (req.user[0].id !== post[0].author){
+  } else if (req.user[0].id !== post.author){
     res.redirect('/');
     return false;
   }
   
-    const post = req.body;
-    const title = post.title;
-    const description = post.description;
-    const id = post.id;
   
     db.query(`UPDATE posts SET title=?, description=? WHERE id=?`,
       [title, description, id], 
@@ -122,6 +124,7 @@ router.get('/update/:pageId', function(req, res){
       `
       <form action="/posts/update_process" method="post" class="post__create">
         <input type="hidden" value="${post[0].id}" name="id">
+        <input type="hidden" value="${post[0].author}" name="author">
         <input class="post_title" type="text" name="title" value="${post[0].title}">
         <textarea class="post_description" name="description">${post[0].description}</textarea>
         <input class="post_submit" type="submit" value="Update">
