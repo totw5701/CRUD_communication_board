@@ -1,14 +1,20 @@
 ///
-
-
-const express = require('express');
+import express from "express";
 const app = express();
+import bodyParser from "body-parser";
+import helmet from "helmet";
+import compression from "compression";
+import flash from "connect-flash";
+import passport from "passport";
+
+/*
+const express = require('express');
 const bodyParser = require('body-parser');
 const helmet = require("helmet");
 const compression = require('compression');
 const flash = require('connect-flash');
 const passport = require('passport');
-
+*/
 
 
 
@@ -48,9 +54,12 @@ app.post('/author/login_process',
 
 
 // ROUTING
-const indexRouter = require('./routes/index');
-const postRouter = require('./routes/post');
-const authorRouter = require('./routes/author');
+import indexRouter from "./routes/index";
+//const indexRouter = require('./routes/index');
+import postRouter from "./routes/post";
+//const postRouter = require('./routes/post');
+import authorRouter from "./routes/author";
+//const authorRouter = require('./routes/author');
 
 app.use('/', indexRouter);
 app.use('/posts', postRouter);
