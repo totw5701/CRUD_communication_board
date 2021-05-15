@@ -40,7 +40,7 @@ export const login = (req, res) => {
     res.send(html);
 }
 
-export const loginProcess = (req, res) => {
+export const loginProcess = (req, res, next) => {
     passport.authenticate('local',(err, user, info) => {
 
         if(req.session.flash){
@@ -70,7 +70,7 @@ export const loginProcess = (req, res) => {
             })
           })
         })
-      })(req, res, next)
+    })(req, res, next)
 }
 
 export const logoutProcess = (req, res) => {
